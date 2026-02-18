@@ -1,13 +1,55 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { io, Socket } from "socket.io-client"
 
 export default function Home()
 {
-  const [username,setUsername]=useState("");
-  const [roomCode,setRoomCode]=useState("");
-  const [message,setMessage]=useState("");
+  const socketRef = useRef<Socket | null>(null)
+
   const [joined, setJoined] = useState(false)
+  const [username, setUsername] = useState("")
+  const [room, setRoom] = useState("")
+  const [message, setMessage] = useState("")
+  const [messages, setMessages] = useState<
+    { user: string; message: string }[]
+  >([])
+
+  useEffect(() =>
+  {
+    socketRef.current = io("http://localhost:8000")
+    socketRef.current.on("receive-message", (data) =>
+    {
+      setMessages((prev) => [...prev, data])
+    })
+
+    return () =>
+    {
+      socketRef.current?.disconnect()
+    }
+  }, [])
+
+  const joinRoom = () =>
+  {
+    if (!username.trim() || !room.trim()) return
+
+    socketRef.current?.emit("join-room", {
+      roomId: room,
+      username
+    })
+
+    setJoined(true)
+  }
+
+  const sendMessage = () =>
+  {
+    if (!message.trim()) return
+
+    socketRef.current?.emit("send-message", message)
+
+    setMessage("")
+  }
+
   if (!joined)
   {
     return (
@@ -18,26 +60,22 @@ export default function Home()
           </h2>
 
           <input
-            type="text"
             placeholder="Enter Username"
-            className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onChange={(e)=>{
-              setUsername(e.target.value);
-            }}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full border rounded-lg px-4 py-2"
           />
 
           <input
-            type="text"
             placeholder="Enter Room Code"
-            className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onChange={(e)=>{
-              setRoomCode(e.target.value);
-            }}
+            value={room}
+            onChange={(e) => setRoom(e.target.value)}
+            className="w-full border rounded-lg px-4 py-2"
           />
 
           <button
-            onClick={() => setJoined(true)}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+            onClick={joinRoom}
+            className="w-full bg-blue-600 text-white py-2 rounded-lg"
           >
             Join Room
           </button>
@@ -48,39 +86,44 @@ export default function Home()
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
-      <div className="bg-white shadow p-4 flex justify-between items-center">
+      <div className="bg-white shadow p-4">
         <h2 className="font-semibold text-lg">
-          Chat Room
+          Room: {room}
         </h2>
-        <span className="text-sm text-gray-500">
-          Username
-        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        <div className="bg-white p-3 rounded-lg shadow max-w-xs">
-          <p className="text-sm font-semibold">User A</p>
-          <p className="text-sm">Hello there 👋</p>
-        </div>
-
-        <div className="bg-blue-600 text-white p-3 rounded-lg shadow max-w-xs ml-auto">
-          <p className="text-sm font-semibold">You</p>
-          <p className="text-sm">Hi!</p>
-        </div>
+        {messages.map((msg, index) =>
+        (
+          <div
+            key={index}
+            className={`p-3 rounded-lg shadow max-w-xs ${
+              msg.user === username
+                ? "bg-blue-600 text-white ml-auto"
+                : "bg-white"
+            }`}
+          >
+            <p className="text-sm font-semibold">
+              {msg.user}
+            </p>
+            <p className="text-sm">
+              {msg.message}
+            </p>
+          </div>
+        ))}
       </div>
 
       <div className="bg-white p-4 flex gap-3">
         <input
-          type="text"
           placeholder="Type a message..."
-          className="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          onChange={(e)=>{
-            setMessage(e.target.value);
-          }}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          className="flex-1 border rounded-lg px-4 py-2"
         />
 
         <button
-          className="bg-blue-600 text-white px-6 rounded-lg hover:bg-blue-700 transition"
+          onClick={sendMessage}
+          className="bg-blue-600 text-white px-6 rounded-lg"
         >
           Send
         </button>
