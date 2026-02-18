@@ -16,16 +16,27 @@ export const initSocket=(server:http.Server)=>{
       console.log("Server is disconnected",socket.id);
     })
 
-    socket.on("join-work",(roomId:string)=>{
+    socket.on("join-work",(roomId:string,username:string)=>{
       socket.join(roomId);
+      socket.data.username=username;
+      socket.data.roomId=roomId;
       console.log(`User ${socket.id} joined ${roomId}`);
+
+      socket.to(roomId).emit("receive-message",{
+        user:"System",
+        message:`${username} joined the freaking room`
+      })
     })
 
     socket.on("send-message",({
-      roomId,
       message
     })=>{
-      io.to(roomId).emit("receive-message",message);
+      const roomId=socket.data.roomId
+      const username=socket.data.username
+      io.to(roomId).emit("receive-message",{
+        user:username,
+        message
+      });
     })
 
     socket.on("disconnected",()=>{
