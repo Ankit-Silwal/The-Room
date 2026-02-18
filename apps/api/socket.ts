@@ -28,7 +28,7 @@ export const initSocket=(server:http.Server)=>{
       io.to(roomId).emit("receive-message",message);
     })
 
-    socket.on("disconncted",()=>{
+    socket.on("disconnected",()=>{
       console.log("User disconnected",socket.id);
     })
   })
