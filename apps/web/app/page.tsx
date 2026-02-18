@@ -11,23 +11,52 @@ export default function Home()
   const [username, setUsername] = useState("")
   const [room, setRoom] = useState("")
   const [message, setMessage] = useState("")
-  const [messages, setMessages] = useState<
-    { user: string; message: string }[]
-  >([])
+  const [messages, setMessages] = useState<{ user: string; message: string }[]>([])
 
-  useEffect(() =>
-  {
+  // Store current state in refs so socket handlers can access latest values without triggering re-renders
+  const roomRef = useRef(room)
+  const usernameRef = useRef(username)
+  const joinedRef = useRef(joined)
+
+  useEffect(() => {
+    roomRef.current = room
+  }, [room])
+
+  useEffect(() => {
+    usernameRef.current = username
+  }, [username])
+
+  useEffect(() => {
+    joinedRef.current = joined
+  }, [joined])
+
+  useEffect(() => {
+    // Initialize socket connection
     socketRef.current = io("http://localhost:8000")
-    socketRef.current.on("receive-message", (data) =>
-    {
+    
+    // Handle connection (and reconnection)
+    socketRef.current.on("connect", () => {
+      console.log("Connected to server with ID:", socketRef.current?.id)
+      
+      // If user was already joined before disconnect/reconnect, rejoin the room automatically
+      if (joinedRef.current && roomRef.current && usernameRef.current) {
+        console.log("Rejoining room:", roomRef.current)
+        socketRef.current?.emit("join-room", {
+          roomId: roomRef.current,
+          username: usernameRef.current
+        })
+      }
+    })
+
+    socketRef.current.on("receive-message", (data) => {
       setMessages((prev) => [...prev, data])
     })
 
-    return () =>
-    {
+    return () => {
       socketRef.current?.disconnect()
     }
   }, [])
+
 
   const joinRoom = () =>
   {
@@ -41,14 +70,13 @@ export default function Home()
     setJoined(true)
   }
 
-  const sendMessage = () =>
-  {
-    if (!message.trim()) return
+  const sendMessage = () => {
+    if (!message.trim() || !room.trim()) return;
 
-    socketRef.current?.emit("send-message", message)
-
-    setMessage("")
-  }
+    socketRef.current?.emit("send-message", { message, roomId: room, username });
+    
+    setMessage("");
+  };
 
   if (!joined)
   {
@@ -118,6 +146,9 @@ export default function Home()
           placeholder="Type a message..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") sendMessage();
+          }}
           className="flex-1 border rounded-lg px-4 py-2"
         />
 
